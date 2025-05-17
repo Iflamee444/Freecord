@@ -30,28 +30,57 @@ int main(int argc, char *argv[])
 	int socket = connect_serveur_tcp(argv[1],PORT_FREESCORD);
 	if (socket < 0) return -1;
 
+	fprintf(stdout,"Entrer un message : ");
+	fflush(stdout);
+		
+
 	//VARIABLES
-	char input[MAXSIZE];
+	struct pollfd feeds[2];
+	feeds[0].fd = STDIN_FILENO;
+	feeds[0].events = POLLIN;
+
+	feeds[1].fd = socket;
+	feeds[1].events = POLLIN;
+
+	char buffer[MAXSIZE];
 
 	while (1)
 	{
+		
+		int retainer = poll(feeds,2, -1);
+		if (retainer < 0){
+			perror("poll");
+			exit(1);
+		}
+
 		// Reception du message
-		printf("Entrer un message : ");
-		if(fgets(input, sizeof(input),stdin) == NULL) {
-			printf("\nDéconnection du serveur...\n");
-			break;
-		}
+			if(feeds[0].revents & POLLIN){
+				if(fgets(buffer, MAXSIZE,stdin) == NULL) {
+				printf("\nDéconnection du serveur...\n");
+				break;
+			}
+			printf("\33[2K\rEntrer un message : ");
+			fflush(stdout);
+		
 
-		//Envoi du message
-		send(socket, input, sizeof(input), 0);
-
-		int reader = read(socket, input, sizeof(input) - 1) ;
-		if((reader <= 0)){
-			fprintf(stderr, "Erreur de réception");
-			break;
+			//Envoi du message
+			send(socket, buffer, sizeof(buffer), 0);
+		
 		}
-		input[reader] = '\0';
-		printf("Réponse du serveur : %s\n", input);
+		
+
+		if(feeds[1].revents & POLLIN){
+			ssize_t reader = read(socket, buffer, MAXSIZE - 1) ;
+			if((reader <= 0)){
+				fprintf(stderr, "Erreur de réception");
+				break;
+			}
+			buffer[reader] = '\0';
+			printf("\33[2K\r>> %s", buffer);
+			printf("Entrer un message : ");
+			fflush(stdout);
+		
+		}
 		
 	}
 	
@@ -82,8 +111,9 @@ int connect_serveur_tcp(char *adresse, uint16_t port)
 		return -1;
 	}
 
+	printf("\nConnection au serveur effectuer, bonne discussion...\n");
 	return fd;
 
 	/* pour éviter les warnings de variable non utilisée */
-	//return *adresse + port;
+	return *adresse + port;
 }
